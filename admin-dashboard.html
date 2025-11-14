@@ -53,10 +53,10 @@ const db = getFirestore(app);
 
 // Admin guard
 const currentUser = JSON.parse(localStorage.getItem("currentUser"));
-if(!currentUser || currentUser.role!=="admin"){ alert("Access denied."); window.location.href="login.html"; }
+if(!currentUser || currentUser.role!=="admin"){ alert("Access denied."); window.location.href="index.html"; }
 
 window.toggleDropdown = () => { const dd=document.getElementById("profile-dropdown"); dd.style.display=dd.style.display==="block"?"none":"block"; }
-window.logout = () => { localStorage.removeItem("currentUser"); window.location.href="login.html"; }
+window.logout = () => { localStorage.removeItem("currentUser"); window.location.href="index.html"; }
 
 document.addEventListener("DOMContentLoaded",()=>{ 
   document.getElementById("profile-initials").textContent = currentUser.name ? currentUser.name[0].toUpperCase() : "A";
@@ -389,3 +389,4 @@ window.onload = async ()=>{
 </div>
 </body>
 </html>
+
