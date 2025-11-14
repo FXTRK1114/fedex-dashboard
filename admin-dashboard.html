@@ -34,6 +34,7 @@ th{background:#4D148C;color:white;}
 .cancel-btn{background:#f44336;color:white;}
 .checkout{position:absolute;bottom:20px;right:20px;background:#FF6600;color:white;padding:8px 12px;border-radius:8px;}
 @media(max-width:768px){.filter-panel{flex-direction:column;align-items:stretch;}.checkout{position:static;margin-top:15px;}}
+
 </style>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
@@ -58,23 +59,33 @@ if(!currentUser || currentUser.role!=="admin"){ alert("Access denied."); window.
 window.toggleDropdown = () => { const dd=document.getElementById("profile-dropdown"); dd.style.display=dd.style.display==="block"?"none":"block"; }
 window.logout = () => { localStorage.removeItem("currentUser"); window.location.href="index.html"; }
 
+// Profile initials
 document.addEventListener("DOMContentLoaded",()=>{ 
   document.getElementById("profile-initials").textContent = currentUser.name ? currentUser.name[0].toUpperCase() : "A";
 });
 
+// ---------------- Manila Date Function ----------------
+const getDate = () => {
+  const options = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(new Date());
+  const y = parts.find(p => p.type==='year').value;
+  const m = parts.find(p => p.type==='month').value;
+  const d = parts.find(p => p.type==='day').value;
+  return `${y}-${m}-${d}`; // YYYY-MM-DD
+};
+
 // Globals
-const getDate = () => new Date().toISOString().split('T')[0];
 let employees = [], attendance = [];
 let currentFilter = "all";
 let currentTeamLeader = "all";
 
-// Load Employees
+// ---------------- Load Employees ----------------
 async function loadEmployees(){
   const empSnap = await getDocs(collection(db,"employees"));
   employees = empSnap.docs.map(d=>({id:d.id,...d.data()}));
 }
 
-// Team Leader Dropdown
+// ---------------- Team Leader Dropdown ----------------
 async function loadTeamLeaderDropdown(){
   const dropdown = document.getElementById("teamLeaderFilter");
   const leaders = [...new Set(employees.map(e=>e.teamLeader).filter(Boolean))];
@@ -82,7 +93,7 @@ async function loadTeamLeaderDropdown(){
   leaders.forEach(l => dropdown.innerHTML += `<option value="${l}">${l}</option>`);
 }
 
-// Dashboard Rendering
+// ---------------- Dashboard Rendering ----------------
 function renderDashboard() {
   const tbody = document.getElementById("main-body");
   tbody.innerHTML = "";
@@ -121,11 +132,11 @@ function renderDashboard() {
   tickActivityDurations();
 }
 
-// Filters
+// ---------------- Filters ----------------
 window.setFilter = (f) => { currentFilter=f; renderDashboard(); }
 window.setTeamLeaderFilter = (tl) => { currentTeamLeader=tl; renderDashboard(); }
 
-// Checkbox Helpers
+// ---------------- Checkbox Helpers ----------------
 function setupCheckboxListeners(){
   const allCheckbox = document.getElementById("selectAllCheckbox");
   const rowCheckboxes = document.querySelectorAll(".row-checkbox");
@@ -139,7 +150,7 @@ function toggleActionButtons(){
   document.getElementById("exportBtn").style.display=checkedBoxes.length?"inline-block":"none";
 }
 
-// Activity Durations
+// ---------------- Activity Durations ----------------
 function tickActivityDurations(){
   document.querySelectorAll(".current-activity").forEach(span=>{
     const startTime = span.dataset.starttime;
@@ -158,11 +169,11 @@ function tickActivityDurations(){
 }
 setInterval(tickActivityDurations,1000);
 
-// Search Input
+// ---------------- Search Inputs ----------------
 document.getElementById("searchID").addEventListener("input", renderDashboard);
 document.getElementById("searchDate").addEventListener("change", renderDashboard);
 
-// Modal & Activity
+// ---------------- Modal & Activity ----------------
 window.viewActivity = async(userId,date)=>{
   document.getElementById("activityModal").style.display="flex";
   document.getElementById("modal-username").textContent=`${userId} (${date})`;
@@ -207,63 +218,6 @@ function startActivityModalTimer(){
 }
 window.closeModal=()=>{ document.getElementById("activityModal").style.display="none"; clearInterval(window.activityTimerInterval); }
 
-// Edit & Save
-window.beginEditRow=(id)=>{
-  const row=document.querySelector(`#activity-body tr[data-id='${id}']`);
-  const startCell=row.querySelector(".act-start");
-  const endCell=row.querySelector(".act-end");
-  const commentCell=row.querySelector(".act-comment");
-  const startVal=startCell.textContent=="-"?"":startCell.textContent;
-  const endVal=endCell.textContent=="-"?"":endCell.textContent.replace(/\s*\(.*\)$/,"");
-  const commentVal=commentCell.textContent;
-  startCell.innerHTML=`<input type="time" value="${startVal}"/>`;
-  endCell.innerHTML=`<input type="time" value="${endVal}"/>`;
-  commentCell.innerHTML=`<input type="text" value="${commentVal}"/>`;
-  row.children[4].innerHTML=`
-    <button class="small-btn save-btn" onclick="saveEditRow('${id}')">Save</button>
-    <button class="small-btn cancel-btn" onclick="cancelEditRow('${id}','${startVal}','${endVal}','${commentVal}')">Cancel</button>`;
-};
-window.cancelEditRow=(id,startVal,endVal,commentVal)=>{
-  const row=document.querySelector(`#activity-body tr[data-id='${id}']`);
-  row.querySelector(".act-start").textContent=startVal||"-";
-  row.querySelector(".act-end").textContent=endVal||"-";
-  row.querySelector(".act-comment").textContent=commentVal||"";
-  row.children[4].innerHTML=`<button class="small-btn edit-btn" onclick="beginEditRow('${id}')">Edit</button>`;
-};
-window.saveEditRow = async (id) => {
-  const row = document.querySelector(`#activity-body tr[data-id='${id}']`);
-  const startInput = row.querySelector(".act-start input");
-  const endInput = row.querySelector(".act-end input");
-  const commentInput = row.querySelector(".act-comment input");
-
-  const start = startInput.value;
-  const end = endInput.value;
-  const comment = commentInput.value;
-
-  const updateObj = { startTime: start || "", comment: comment || "" };
-  if (end) {
-    updateObj.endTime = end;
-    updateObj.totalHours = calculateTotalHours(start, end);
-  } else {
-    updateObj.endTime = "";
-    updateObj.totalHours = "00:00:00";
-  }
-
-  await updateDoc(doc(db, "attendance", id), updateObj);
-
-  row.querySelector(".act-start").textContent = start || "-";
-  row.querySelector(".act-end").textContent = end || "-";
-  row.querySelector(".act-comment").textContent = comment || "";
-
-  if (start && end) {
-    row.querySelector(".act-end").textContent += ` (${updateObj.totalHours})`;
-  }
-
-  row.children[4].innerHTML = `<button class="small-btn edit-btn" onclick="beginEditRow('${id}')">Edit</button>`;
-
-  renderDashboard(); // refresh main table totals
-};
-
 // ---------------- Checkout ----------------
 function calculateTotalHours(start,end){
   if(!start||!end) return "00:00:00";
@@ -281,7 +235,7 @@ document.querySelector(".checkout").onclick=async ()=>{
     const timerCell=row.children[2].querySelector(".activity-timer");
     if(timerCell){
       const attId=row.dataset.id; if(!attId) continue;
-      const nowTime=new Date().toLocaleTimeString([],{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const nowTime=new Date().toLocaleTimeString('en-GB',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit', timeZone:'Asia/Manila'});
       const startTime=row.children[1].textContent;
       const totalHours=calculateTotalHours(startTime,nowTime);
       await updateDoc(doc(db,"attendance",attId),{endTime:nowTime,totalHours});
@@ -295,38 +249,27 @@ document.querySelector(".checkout").onclick=async ()=>{
 document.getElementById("deleteBtn").onclick = async () => {
   const checkedRows = document.querySelectorAll(".row-checkbox:checked");
   if (!checkedRows.length) return;
-
-  if (!confirm(`Are you sure you want to delete ${checkedRows.length} selected record(s)?`)) return;
+  if (!confirm(`Are you sure you want to delete punches for ${checkedRows.length} selected record(s)?`)) return;
 
   try {
     for (const cb of checkedRows) {
       const tr = cb.closest("tr");
       const userId = tr.dataset.user;
-      const shiftDate = tr.children[2].textContent; // Shift Date column
-
+      const shiftDate = tr.children[2].textContent;
       if (!userId || !shiftDate) continue;
 
-      // Query all attendance records for this user/date
-      const q = query(
-        collection(db, "attendance"),
-        where("userId", "==", userId),
-        where("shiftDate", "==", shiftDate)
-      );
+      const q = query(collection(db, "attendance"), where("userId","==",userId), where("shiftDate","==",shiftDate));
       const snap = await getDocs(q);
-      for (const docSnap of snap.docs) {
-        await deleteDoc(doc(db, "attendance", docSnap.id));
-      }
+      for (const docSnap of snap.docs) { await deleteDoc(doc(db,"attendance",docSnap.id)); }
     }
 
     alert("✅ Selected attendance records have been successfully deleted.");
-    renderDashboard(); // Refresh table
+    renderDashboard();
   } catch (err) {
     console.error("Error deleting records:", err);
     alert("❌ Failed to delete records. See console for details.");
   }
 };
-
-
 
 document.getElementById("exportBtn").onclick=()=>{
   const checkedRows=document.querySelectorAll(".row-checkbox:checked"); if(!checkedRows.length) return;
@@ -340,7 +283,7 @@ document.getElementById("exportBtn").onclick=()=>{
   const a=document.createElement("a"); a.href=url; a.download=`attendance_export_${getDate()}.csv`; a.click(); URL.revokeObjectURL(url);
 };
 
-// Real-time Attendance
+// ---------------- Real-time Attendance ----------------
 function startRealtimeAttendance(){
   const attCol = collection(db,"attendance");
   onSnapshot(attCol,snap=>{
@@ -349,7 +292,7 @@ function startRealtimeAttendance(){
   });
 }
 
-// Initial Load
+// ---------------- Initial Load ----------------
 window.onload = async ()=>{
   document.getElementById("searchDate").value = getDate();
   await loadEmployees();
@@ -389,4 +332,3 @@ window.onload = async ()=>{
 </div>
 </body>
 </html>
-
